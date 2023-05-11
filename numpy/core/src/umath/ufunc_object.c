@@ -5935,6 +5935,9 @@ trivial_at_loop(PyArrayMethodObject *ufuncimpl, NPY_ARRAYMETHOD_FLAGS flags,
 
         res = ufuncimpl->contiguous_indexed_loop(
                 context, args, inner_size, steps, NULL);
+        if (args[2] != NULL) {
+            args[2] += (*inner_size) * steps[2];
+        }
     } while (res == 0 && iter->outer_next(iter->outer));
 
     if (res == 0 && !(flags & NPY_METH_NO_FLOATINGPOINT_ERRORS)) {
@@ -6604,14 +6607,8 @@ py_resolve_dtypes_generic(PyUFuncObject *ufunc, npy_bool return_context,
             Py_INCREF(descr);
             dummy_arrays[i] = (PyArrayObject *)PyArray_NewFromDescr_int(
                     &PyArray_Type, descr, 0, NULL, NULL, NULL,
-                    0, NULL, NULL, 0, 1);
+                    0, NULL, NULL, _NPY_ARRAY_ENSURE_DTYPE_IDENTITY);
             if (dummy_arrays[i] == NULL) {
-                goto finish;
-            }
-            if (PyArray_DESCR(dummy_arrays[i]) != descr) {
-                PyErr_SetString(PyExc_NotImplementedError,
-                    "dtype was replaced during array creation, the dtype is "
-                    "unsupported currently (a subarray dtype?).");
                 goto finish;
             }
             DTypes[i] = NPY_DTYPE(descr);

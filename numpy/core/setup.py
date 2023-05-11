@@ -20,7 +20,7 @@ from setup_common import *  # noqa: F403
 NPY_RELAXED_STRIDES_CHECKING = (os.environ.get('NPY_RELAXED_STRIDES_CHECKING', "1") != "0")
 if not NPY_RELAXED_STRIDES_CHECKING:
     raise SystemError(
-        "Support for NPY_RELAXED_STRIDES_CHECKING=0 has been remove as of "
+        "Support for NPY_RELAXED_STRIDES_CHECKING=0 has been removed as of "
         "NumPy 1.23.  This error will eventually be removed entirely.")
 
 # Put NPY_RELAXED_STRIDES_DEBUG=1 in the environment if you want numpy to use a
@@ -405,7 +405,6 @@ def configuration(parent_package='',top_path=None):
                                            exec_mod_from_location)
     from numpy.distutils.system_info import (get_info, blas_opt_info,
                                              lapack_opt_info)
-    from numpy.distutils.ccompiler_opt import NPY_CXX_FLAGS
     from numpy.version import release as is_released
 
     config = Configuration('core', parent_package, top_path)
@@ -658,44 +657,6 @@ def configuration(parent_package='',top_path=None):
         # but we cannot use add_installed_pkg_config here either, so we only
         # update the substitution dictionary during npymath build
         config_cmd = config.get_config_cmd()
-        # Check that the toolchain works, to fail early if it doesn't
-        # (avoid late errors with MATHLIB which are confusing if the
-        # compiler does not work).
-        for lang, test_code, note in (
-            ('c', 'int main(void) { return 0;}', ''),
-            ('c++', (
-                    'int main(void)'
-                    '{ auto x = 0.0; return static_cast<int>(x); }'
-                ), (
-                    'note: A compiler with support for C++11 language '
-                    'features is required.'
-                )
-             ),
-        ):
-            is_cpp = lang == 'c++'
-            if is_cpp:
-                # this a workaround to get rid of invalid c++ flags
-                # without doing big changes to config.
-                # c tested first, compiler should be here
-                bk_c = config_cmd.compiler
-                config_cmd.compiler = bk_c.cxx_compiler()
-
-                # Check that Linux compiler actually support the default flags
-                if hasattr(config_cmd.compiler, 'compiler'):
-                    config_cmd.compiler.compiler.extend(NPY_CXX_FLAGS)
-                    config_cmd.compiler.compiler_so.extend(NPY_CXX_FLAGS)
-
-            st = config_cmd.try_link(test_code, lang=lang)
-            if not st:
-                # rerun the failing command in verbose mode
-                config_cmd.compiler.verbose = True
-                config_cmd.try_link(test_code, lang=lang)
-                raise RuntimeError(
-                    f"Broken toolchain: cannot link a simple {lang.upper()} "
-                    f"program. {note}"
-                )
-            if is_cpp:
-                config_cmd.compiler = bk_c
         mlibs = check_mathlib(config_cmd)
 
         posix_mlib = ' '.join(['-l%s' % l for l in mlibs])
@@ -708,7 +669,7 @@ def configuration(parent_package='',top_path=None):
                        # join('src', 'npymath', 'ieee754.cpp'),
                        join('src', 'npymath', 'ieee754.c.src'),
                        join('src', 'npymath', 'npy_math_complex.c.src'),
-                       join('src', 'npymath', 'halffloat.c'),
+                       join('src', 'npymath', 'halffloat.cpp'),
                        ]
 
     config.add_installed_library('npymath',
@@ -766,7 +727,8 @@ def configuration(parent_package='',top_path=None):
             join('src', 'common', 'numpyos.h'),
             join('src', 'common', 'npy_cpu_dispatch.h'),
             join('src', 'common', 'simd', 'simd.h'),
-            ]
+            join('src', 'common', 'common.hpp'),
+        ]
 
     common_src = [
             join('src', 'common', 'array_assign.c'),
@@ -1049,9 +1011,6 @@ def configuration(parent_package='',top_path=None):
         svml_objs.sort()
 
     config.add_extension('_multiarray_umath',
-                         # Forcing C language even though we have C++ sources.
-                         # It forces the C linker and don't link C++ runtime.
-                         language = 'c',
                          sources=multiarray_src + umath_src +
                                  common_src +
                                  [generate_config_h,
@@ -1067,8 +1026,7 @@ def configuration(parent_package='',top_path=None):
                                 common_deps,
                          libraries=['npymath'],
                          extra_objects=svml_objs,
-                         extra_info=extra_info,
-                         extra_cxx_compile_args=NPY_CXX_FLAGS)
+                         extra_info=extra_info)
 
     #######################################################################
     #                        umath_tests module                           #
